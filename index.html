@@ -152,6 +152,13 @@
         .btn-brutal:hover { background-color: #ffffff; transform: translateY(-2px); box-shadow: 0 4px 0 #39ff14; }
         .btn-brutal:active { transform: translateY(2px); box-shadow: 0 0 0 #39ff14; }
 
+        /* Long transition between waves: distinct from normal recovery. */
+        .transition-phase .flip-card { background-color: #241500; border-color: #ff9f1c; }
+        .transition-phase .flip-digit { color: #ffb347; }
+        .transition-phase .flip-card::after { background-color: #170d00; }
+        .transition-phase .flip-separator { color: #a85d00; }
+        .transition-phase .transition-glow { background-color: #ff9f1c; box-shadow: 0 0 24px 7px rgba(255,159,28,.7); }
+
         /* Timer Screen Strict Full viewport fit */
         #timer-screen {
             height: 100dvh;
@@ -200,6 +207,7 @@
                         <!-- Waves injected here -->
                     </div>
                 </div>
+                <div id="session-estimate" class="border-2 border-[#333] bg-[#111] px-4 py-4 font-mono text-sm md:text-base text-gray-300" aria-live="polite"></div>
 
                 <button onclick="startSession()" class="btn-brutal w-full mt-10 py-6 text-2xl tracking-widest flex justify-center items-center gap-4">
                     START CLASS <i class="fa-solid fa-bolt"></i>
@@ -389,21 +397,58 @@
                             </div>
                         </div>
                     </div>
+                    ${index < wavesData.length - 1 ? `
+                        <div class="mt-4 border-2 border-[#7a4a11] bg-[#1b1207] p-4 md:p-5">
+                            <div class="font-black text-sm uppercase tracking-widest text-[#ffb347] mb-3"><i class="fa-solid fa-arrows-left-right mr-2"></i>Rest Between Wave ${index + 1} &amp; ${index + 2}</div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6">
+                                <div><label class="block text-[10px] md:text-xs font-bold text-[#c98a3d] uppercase mb-2">Custom label</label><input type="text" maxlength="32" value="${escapeAttribute(wave.transitionLabel || 'WAVE TRANSITION')}" oninput="updateTransition(${index}, 'transitionLabel', this.value)" placeholder="e.g. STATION SWAP" class="text-center text-base p-3"></div>
+                                <div><label class="block text-[10px] md:text-xs font-bold text-[#c98a3d] uppercase mb-2">Rest duration (sec)</label><input type="number" min="0" value="${Math.max(0, Number(wave.transitionDuration) || 0)}" onchange="updateTransition(${index}, 'transitionDuration', this.value)" class="text-center text-lg p-3"></div>
+                            </div>
+                        </div>` : ''}
                 `;
             });
+            updateSessionEstimate();
         }
 
-        function addWave() { wavesData.push({ id: Date.now(), work: 45, rest: 15, rounds: 3 }); renderWavesSetup(); }
+        function escapeAttribute(value) { return String(value).replaceAll('&', '&amp;').replaceAll('\"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;'); }
+        function formatDuration(totalSeconds) {
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+            return [hours ? `${hours}j` : '', minutes ? `${minutes}m` : '', seconds || (!hours && !minutes) ? `${seconds}d` : ''].filter(Boolean).join(' ');
+        }
+        function getSessionDuration() {
+            return wavesData.reduce((total, wave, index) => {
+                const rounds = Math.max(0, Math.floor(Number(wave.rounds) || 0));
+                const work = Math.max(0, Number(wave.work) || 0);
+                const rest = Math.max(0, Number(wave.rest) || 0);
+                const transition = index < wavesData.length - 1 ? Math.max(0, Number(wave.transitionDuration) || 0) : 0;
+                return total + rounds * work + Math.max(0, rounds - 1) * rest + transition;
+            }, 0);
+        }
+        function updateSessionEstimate() {
+            const estimate = document.getElementById('session-estimate');
+            if (estimate) estimate.innerHTML = `<span class="text-[#39ff14] font-black uppercase">Estimated class time</span><br><strong class="inline-block mt-1 text-xl text-white">${formatDuration(getSessionDuration())}</strong><span class="block mt-1 text-xs text-gray-500">Including all work, round rests, and wave transitions</span>`;
+        }
+        function addWave() { wavesData.push({ id: Date.now(), work: 45, rest: 15, rounds: 3, transitionDuration: 0, transitionLabel: 'WAVE TRANSITION' }); renderWavesSetup(); }
         function removeWave(index) { wavesData.splice(index, 1); renderWavesSetup(); }
-        function updateWave(index, field, value) { wavesData[index][field] = parseInt(value) || 0; }
+        function updateWave(index, field, value) { wavesData[index][field] = Math.max(0, parseInt(value, 10) || 0); updateSessionEstimate(); }
+        function updateTransition(index, field, value) {
+            wavesData[index][field] = field === 'transitionDuration' ? Math.max(0, parseInt(value, 10) || 0) : value;
+            updateSessionEstimate();
+        }
 
         // --- TIMER LOGIC ---
         function startSession() {
             sessionQueue = [];
             wavesData.forEach((w, wIdx) => {
-                for (let r = 1; r <= w.rounds; r++) {
-                    sessionQueue.push({ type: 'WORK', duration: w.work, waveNum: wIdx + 1, round: r, totalRounds: w.rounds });
-                    if (w.rest > 0) sessionQueue.push({ type: 'REST', duration: w.rest, waveNum: wIdx + 1, round: r, totalRounds: w.rounds });
+                const rounds = Math.max(0, Math.floor(Number(w.rounds) || 0));
+                for (let r = 1; r <= rounds; r++) {
+                    sessionQueue.push({ type: 'WORK', duration: Math.max(0, Number(w.work) || 0), waveNum: wIdx + 1, round: r, totalRounds: rounds });
+                    if (w.rest > 0 && r < rounds) sessionQueue.push({ type: 'REST', duration: Math.max(0, Number(w.rest) || 0), waveNum: wIdx + 1, round: r, totalRounds: rounds });
+                }
+                if (wIdx < wavesData.length - 1 && Number(w.transitionDuration) > 0) {
+                    sessionQueue.push({ type: 'TRANSITION', duration: Number(w.transitionDuration), label: (w.transitionLabel || 'WAVE TRANSITION').trim() || 'WAVE TRANSITION', waveNum: wIdx + 1, nextWaveNum: wIdx + 2 });
                 }
             });
 
@@ -414,6 +459,7 @@
             
             document.getElementById('setup-screen').classList.add('hidden');
             document.getElementById('timer-screen').classList.remove('hidden');
+            document.getElementById('timer-screen').classList.remove('transition-phase');
 
             currentQueueIndex = 0;
             initAudio();
@@ -441,18 +487,27 @@
 
             const phase = sessionQueue[currentQueueIndex];
             timeLeft = phase.duration;
-            
-            document.getElementById('wave-info').innerText = `WAVE ${phase.waveNum} // ROUND ${phase.round} / ${phase.totalRounds}`;
-            
+            const isTransition = phase.type === 'TRANSITION';
+            document.getElementById('timer-screen').classList.toggle('transition-phase', isTransition);
+            document.getElementById('wave-info').innerText = isTransition
+                ? `BETWEEN WAVE ${phase.waveNum} & ${phase.nextWaveNum}`
+                : `WAVE ${phase.waveNum} // ROUND ${phase.round} / ${phase.totalRounds}`;
+
             const nextPhase = sessionQueue[currentQueueIndex + 1];
-            document.getElementById('next-up').innerText = nextPhase ? `NEXT: ${nextPhase.type} (${nextPhase.duration}s)` : 'NEXT: FINISH';
+            document.getElementById('next-up').innerText = nextPhase ? `NEXT: ${nextPhase.type === 'TRANSITION' ? nextPhase.label : nextPhase.type} (${nextPhase.duration}s)` : 'NEXT: FINISH';
 
             const phaseLabel = document.getElementById('phase-label');
             const dot1 = document.getElementById('rest-glow-dot');
             const dot2 = document.getElementById('rest-glow-dot-right');
 
-            phaseLabel.style.color = "#ffffff";
-            if (phase.type === 'REST') {
+            phaseLabel.style.color = isTransition ? "#ffb347" : "#ffffff";
+            dot1.classList.toggle('transition-glow', isTransition);
+            dot2.classList.toggle('transition-glow', isTransition);
+            if (isTransition) {
+                phaseLabel.innerText = phase.label;
+                dot1.classList.add('active');
+                dot2.classList.add('active');
+            } else if (phase.type === 'REST') {
                 phaseLabel.innerText = "REST // RECOVER";
                 dot1.classList.add('active');
                 dot2.classList.add('active');
@@ -499,7 +554,7 @@
                     timeLeft--;
                     updateFlipClock(timeLeft);
                     
-                    if (sessionQueue[currentQueueIndex].type === 'WORK' && timeLeft <= 10 && timeLeft > 0) {
+                    if (sessionQueue[currentQueueIndex].type !== 'REST' && timeLeft <= 10 && timeLeft > 0) {
                         playLoudTick();
                     }
                 } else {
@@ -535,3 +590,4 @@
     </script>
 </body>
 </html>
+
