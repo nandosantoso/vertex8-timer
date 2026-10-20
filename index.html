@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VERTEX8 // Hybrid Flip Timer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        blackbg: '#0a0a0a',
+                        carddark: '#0f0f0f',
+                        borderdark: '#333333',
+                        neonlime: '#39ff14',
+                        offwhite: '#e0e0e0',
+                        flipbg: '#111111',
+                        lightgray: '#b0b0b0'
+                    },
+                    fontFamily: {
+                        mono: ['Courier New', 'Courier', 'monospace'],
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+        /* Strict Brutalist Background */
+        html, body {
+            background-color: #0a0a0a !important;
+            color: #e0e0e0 !important;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            overscroll-behavior: none;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Landscape Scaled Mechanical Flip Clock */
+        .flip-clock-container {
+            display: flex;
+            gap: clamp(8px, 2vmin, 24px);
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .flip-group {
+            display: flex;
+            gap: clamp(4px, 1vmin, 12px);
+        }
+
+        .flip-card {
+            position: relative;
+            background-color: #111111;
+            border-radius: clamp(2px, 0.5vmin, 6px);
+            width: clamp(70px, 16vmin, 200px);
+            height: clamp(100px, 24vmin, 280px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 1vmin 3vmin rgba(0,0,0,0.9), inset 0 2px 0 rgba(255,255,255,0.05);
+            border: clamp(1px, 0.4vmin, 4px) solid #222222;
+            overflow: hidden;
+        }
+
+        .flip-digit {
+            font-size: clamp(4rem, 15vmin, 15rem);
+            font-weight: 900;
+            color: #ffffff;
+            line-height: 1;
+            font-family: 'Inter', sans-serif;
+            z-index: 10;
+        }
+
+        /* Horizontal Split Line */
+        .flip-card::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: clamp(2px, 0.5vmin, 6px);
+            background-color: #0a0a0a;
+            z-index: 20;
+            transform: translateY(-50%);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.9);
+        }
+
+        .flip-separator {
+            font-size: clamp(3rem, 10vmin, 10rem);
+            font-weight: bold;
+            color: #444;
+            padding-bottom: clamp(5px, 1vmin, 20px);
+            line-height: 0.8;
+        }
+
+        /* Glowing Dot - REST Phase */
+        .glow-dot {
+            width: clamp(16px, 4vmin, 40px);
+            height: clamp(16px, 4vmin, 40px);
+            flex-shrink: 0; 
+            border-radius: 50%;
+            background-color: #39ff14;
+            box-shadow: 0 0 clamp(10px, 3vmin, 40px) clamp(2px, 1vmin, 15px) rgba(57, 255, 20, 0.7);
+            display: none;
+            margin: 0 clamp(8px, 2vmin, 24px);
+        }
+
+        .glow-dot.active {
+            display: inline-block;
+            animation: pulse-glow 1.2s infinite alternate;
+        }
+
+        @keyframes pulse-glow {
+            from { box-shadow: 0 0 10px 2px rgba(57, 255, 20, 0.5); transform: scale(0.95); }
+            to { box-shadow: 0 0 30px 10px rgba(57, 255, 20, 0.9); transform: scale(1.05); }
+        }
+
+        /* Brutalist Forms */
+        input[type="text"], input[type="number"] {
+            background-color: #0a0a0a;
+            border: 2px solid #333;
+            color: #fff;
+            border-radius: 0;
+            padding: 16px;
+            font-family: 'Inter', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            width: 100%;
+            transition: all 0.2s;
+        }
+        input:focus { outline: none; border-color: #39ff14; background-color: #111; }
+        
+        .btn-brutal {
+            background-color: #e0e0e0;
+            color: #0a0a0a;
+            border: none;
+            border-radius: 0;
+            font-weight: 900;
+            text-transform: uppercase;
+            transition: all 0.1s;
+        }
+        .btn-brutal:hover { background-color: #ffffff; transform: translateY(-2px); box-shadow: 0 4px 0 #39ff14; }
+        .btn-brutal:active { transform: translateY(2px); box-shadow: 0 0 0 #39ff14; }
+
+        /* Timer Screen Strict Full viewport fit */
+        #timer-screen {
+            height: 100dvh;
+            width: 100vw;
+            overflow: hidden; /* Force no scrolling */
+        }
+        
+        /* Landscape specific scaling for phase label */
+        .phase-text {
+            font-size: clamp(2rem, 8vmin, 8rem);
+            line-height: 1;
+        }
+    </style>
+</head>
+<body class="bg-blackbg text-offwhite">
+
+    <!-- SETUP SCREEN -->
+    <div id="setup-screen" class="max-w-5xl mx-auto p-4 md:p-8 pt-6 overflow-y-auto h-full">
+        <div class="border-4 border-borderdark p-6 md:p-10 bg-carddark mb-8 relative">
+            <div class="flex flex-col items-start mb-8">
+                <!-- SVG E Logo replicated from original image -->
+                <div class="flex items-center font-black text-4xl md:text-6xl tracking-widest text-white leading-none">
+                    <span>V</span>
+                    <svg viewBox="0 0 24 24" class="h-[0.75em] w-[0.6em] fill-current mx-[4px]"><path d="M0 2h24v4.5H0zM0 10h24v4.5H0zM0 18h24v4.5H0z"/></svg>
+                    <span>RT</span>
+                    <svg viewBox="0 0 24 24" class="h-[0.75em] w-[0.6em] fill-current mx-[4px]"><path d="M0 2h24v4.5H0zM0 10h24v4.5H0zM0 18h24v4.5H0z"/></svg>
+                    <span>X8</span>
+                </div>
+                <span class="text-[0.8rem] md:text-sm tracking-[0.65em] font-bold mt-2 ml-1 text-white">SERPONG</span>
+            </div>
+
+            <h1 class="text-2xl md:text-3xl font-black uppercase tracking-tighter mb-2 text-lightgray">System Setup</h1>
+            <p class="text-gray-500 font-mono text-sm md:text-base mb-10 border-b-2 border-borderdark pb-6">CONFIGURE HYBRID INTERVAL PARAMETERS</p>
+
+            <div class="space-y-8 relative z-10">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <label class="block text-sm font-black text-gray-400 uppercase mb-3 tracking-widest">Class Title</label>
+                        <input type="text" id="class-title" value="VERTEX8 HYBRID">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-black text-gray-400 uppercase mb-3 tracking-widest">Coach Name</label>
+                        <input type="text" id="coach-name" value="NANDO" class="text-lightgray">
+                    </div>
+                </div>
+
+                <div class="pt-8 border-t-2 border-borderdark">
+                    <div class="flex justify-between items-center mb-6">
+                        <label class="block text-sm font-black text-gray-400 uppercase tracking-widest">Wave Configuration</label>
+                        <button onclick="addWave()" class="text-xs font-black bg-[#222] hover:bg-[#444] px-4 py-3 text-white transition uppercase tracking-wider border-2 border-[#444]">+ Add Wave</button>
+                    </div>
+                    
+                    <div id="waves-container" class="space-y-4">
+                        <!-- Waves injected here -->
+                    </div>
+                </div>
+
+                <button onclick="startSession()" class="btn-brutal w-full mt-10 py-6 text-2xl tracking-widest flex justify-center items-center gap-4">
+                    START CLASS <i class="fa-solid fa-bolt"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIMER SCREEN (Optimized for landscape perfect-fit) -->
+    <div id="timer-screen" class="hidden flex flex-col p-2 md:p-6">
+        <!-- Top HUD -->
+        <div class="flex justify-between items-center border-b-2 border-borderdark pb-2 md:pb-4 mb-2 md:mb-4 flex-shrink-0">
+            <div class="flex items-center gap-4 md:gap-8">
+                <!-- Tiny Logo for HUD -->
+                <div class="hidden md:flex flex-col items-start">
+                    <div class="flex items-center font-black text-2xl tracking-widest text-white leading-none">
+                        <span>V</span>
+                        <svg viewBox="0 0 24 24" class="h-[0.75em] w-[0.6em] fill-current mx-[2px]"><path d="M0 2h24v4.5H0zM0 10h24v4.5H0zM0 18h24v4.5H0z"/></svg>
+                        <span>RT</span>
+                        <svg viewBox="0 0 24 24" class="h-[0.75em] w-[0.6em] fill-current mx-[2px]"><path d="M0 2h24v4.5H0zM0 10h24v4.5H0zM0 18h24v4.5H0z"/></svg>
+                        <span>X8</span>
+                    </div>
+                </div>
+                <!-- Info -->
+                <div class="flex flex-col">
+                    <span id="display-title" class="text-xs md:text-sm font-black text-white uppercase tracking-wider mb-1">VERTEX8 HYBRID</span>
+                    <span id="display-coach" class="text-[10px] md:text-xs font-mono text-lightgray font-bold uppercase">COACH: NANDO</span>
+                </div>
+            </div>
+            <div class="flex gap-2 md:gap-4">
+                <button onclick="toggleFullscreen()" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-[#111] border-2 border-borderdark hover:border-[#39ff14] text-white transition">
+                    <i class="fa-solid fa-expand"></i>
+                </button>
+                <button onclick="backToSetup()" class="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-[#111] border-2 border-borderdark hover:border-red-500 text-white transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Timer Area - Flex grow ensures it centers perfectly -->
+        <div class="flex-grow flex flex-col items-center justify-center relative w-full overflow-hidden">
+            
+            <!-- Phase Indicator -->
+            <div class="text-center mb-4 md:mb-8 flex flex-col items-center flex-shrink-0">
+                <div class="flex items-center justify-center mb-2">
+                    <div id="rest-glow-dot" class="glow-dot"></div>
+                    <h3 id="phase-label" class="phase-text font-black uppercase tracking-tighter text-white whitespace-nowrap">WORK PHASE</h3>
+                    <div id="rest-glow-dot-right" class="glow-dot"></div>
+                </div>
+                <div class="bg-[#111] border-2 border-borderdark px-4 py-1 md:px-6 md:py-2">
+                    <p id="wave-info" class="text-[#e0e0e0] font-mono text-sm md:text-xl uppercase tracking-widest font-bold">WAVE 1 // ROUND 1 / 3</p>
+                </div>
+            </div>
+
+            <!-- Landscape Optimized Flip Clock -->
+            <div class="flip-clock-container mb-4 md:mb-8 flex-shrink-0">
+                <!-- Minutes -->
+                <div class="flip-group">
+                    <div class="flip-card"><div id="m1" class="flip-digit">0</div></div>
+                    <div class="flip-card"><div id="m2" class="flip-digit">0</div></div>
+                </div>
+                <div class="flip-separator">:</div>
+                <!-- Seconds -->
+                <div class="flip-group">
+                    <div class="flip-card"><div id="s1" class="flip-digit">0</div></div>
+                    <div class="flip-card"><div id="s2" class="flip-digit">0</div></div>
+                </div>
+            </div>
+
+            <!-- Controls and Next Up -->
+            <div class="flex flex-col items-center flex-shrink-0 gap-4">
+                <div class="flex gap-4 md:gap-6 items-center">
+                    <button id="btn-playpause" onclick="toggleTimer()" class="w-16 h-16 md:w-24 md:h-24 bg-[#e0e0e0] text-[#0a0a0a] hover:bg-white flex items-center justify-center text-3xl md:text-4xl transition shadow-[0_0_20px_rgba(255,255,255,0.1)] border-none rounded-none">
+                        <i id="icon-playpause" class="fa-solid fa-play ml-1 md:ml-2"></i>
+                    </button>
+                    <button onclick="skipPhase()" class="w-12 h-12 md:w-16 md:h-16 bg-[#111] border-2 border-borderdark hover:border-white text-white flex items-center justify-center text-xl md:text-2xl transition rounded-none">
+                        <i class="fa-solid fa-forward-step"></i>
+                    </button>
+                </div>
+                
+                <p id="next-up" class="text-xs md:text-sm font-mono text-gray-500 uppercase font-bold tracking-widest">NEXT: REST (15s)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        let wavesData = [
+            { id: 1, work: 45, rest: 15, rounds: 3 }
+        ];
+        
+        let sessionQueue = [];
+        let currentQueueIndex = 0;
+        let timeLeft = 0;
+        let timerInterval = null;
+        let isRunning = false;
+
+        // --- WEB AUDIO API ENGINE ---
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        // LOUDER High-pitch Tick for Last 10 Seconds
+        function playLoudTick() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(1500, audioCtx.currentTime); // Sharp, piercing pitch
+            
+            // High gain for loud staccato tick
+            gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime); 
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        // Realistic Stadium Trumpet/Horn for Phase Changes
+        function playStadiumHorn() {
+            if (!audioCtx) return;
+            
+            const masterGain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(500, audioCtx.currentTime);
+            filter.frequency.linearRampToValueAtTime(4000, audioCtx.currentTime + 0.05);
+            filter.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 1.2);
+            
+            filter.connect(masterGain);
+            masterGain.connect(audioCtx.destination);
+            
+            masterGain.gain.setValueAtTime(0, audioCtx.currentTime);
+            masterGain.gain.linearRampToValueAtTime(1.5, audioCtx.currentTime + 0.05);
+            masterGain.gain.setValueAtTime(1.5, audioCtx.currentTime + 1.0);
+            masterGain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+
+            // Brassy chord (Fundamental ~233Hz + aggressive harmonics)
+            const freqs = [ 233.08, 235.50, 466.16, 699.25, 932.32 ]; 
+            
+            freqs.forEach(baseFreq => {
+                const osc = audioCtx.createOscillator();
+                osc.type = 'sawtooth';
+                
+                // Pitch envelope mimics air blast
+                osc.frequency.setValueAtTime(baseFreq * 1.05, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(baseFreq, audioCtx.currentTime + 0.1);
+
+                osc.connect(filter);
+                osc.start(audioCtx.currentTime);
+                osc.stop(audioCtx.currentTime + 1.5);
+            });
+        }
+
+        // --- SETUP UI LOGIC ---
+        function renderWavesSetup() {
+            const container = document.getElementById('waves-container');
+            container.innerHTML = '';
+            wavesData.forEach((wave, index) => {
+                container.innerHTML += `
+                    <div class="bg-[#0a0a0a] p-5 border-2 border-borderdark relative group hover:border-gray-600 transition">
+                        <div class="flex justify-between mb-4 border-b-2 border-[#222] pb-2">
+                            <span class="font-black text-lg uppercase tracking-widest text-white">Wave ${index + 1}</span>
+                            ${wavesData.length > 1 ? `<button onclick="removeWave(${index})" class="text-red-500 hover:text-red-400 text-sm font-black uppercase"><i class="fa-solid fa-xmark mr-1"></i> Remove</button>` : ''}
+                        </div>
+                        <div class="grid grid-cols-3 gap-3 md:gap-6">
+                            <div>
+                                <label class="block text-[10px] md:text-xs font-bold text-gray-500 uppercase mb-2">Work (sec)</label>
+                                <input type="number" min="5" value="${wave.work}" onchange="updateWave(${index}, 'work', this.value)" class="text-center text-lg md:text-xl p-2 md:p-4">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] md:text-xs font-bold text-gray-500 uppercase mb-2">Rest (sec)</label>
+                                <input type="number" min="0" value="${wave.rest}" onchange="updateWave(${index}, 'rest', this.value)" class="text-center text-lg md:text-xl p-2 md:p-4">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] md:text-xs font-bold text-gray-500 uppercase mb-2">Rounds</label>
+                                <input type="number" min="1" value="${wave.rounds}" onchange="updateWave(${index}, 'rounds', this.value)" class="text-center text-lg md:text-xl p-2 md:p-4">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function addWave() { wavesData.push({ id: Date.now(), work: 45, rest: 15, rounds: 3 }); renderWavesSetup(); }
+        function removeWave(index) { wavesData.splice(index, 1); renderWavesSetup(); }
+        function updateWave(index, field, value) { wavesData[index][field] = parseInt(value) || 0; }
+
+        // --- TIMER LOGIC ---
+        function startSession() {
+            sessionQueue = [];
+            wavesData.forEach((w, wIdx) => {
+                for (let r = 1; r <= w.rounds; r++) {
+                    sessionQueue.push({ type: 'WORK', duration: w.work, waveNum: wIdx + 1, round: r, totalRounds: w.rounds });
+                    if (w.rest > 0) sessionQueue.push({ type: 'REST', duration: w.rest, waveNum: wIdx + 1, round: r, totalRounds: w.rounds });
+                }
+            });
+
+            if (sessionQueue.length === 0) return;
+
+            document.getElementById('display-title').innerText = document.getElementById('class-title').value || 'VERTEX8 HYBRID';
+            document.getElementById('display-coach').innerText = "COACH: " + (document.getElementById('coach-name').value || 'NANDO');
+            
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('timer-screen').classList.remove('hidden');
+
+            currentQueueIndex = 0;
+            initAudio();
+            loadPhase();
+        }
+
+        function backToSetup() {
+            pauseTimer();
+            document.getElementById('timer-screen').classList.add('hidden');
+            document.getElementById('setup-screen').classList.remove('hidden');
+            if (document.fullscreenElement) document.exitFullscreen();
+        }
+
+        function loadPhase() {
+            if (currentQueueIndex >= sessionQueue.length) {
+                document.getElementById('phase-label').innerText = "SESSION COMPLETE";
+                document.getElementById('phase-label').style.color = "#39ff14";
+                document.getElementById('wave-info').innerText = "DONE";
+                document.getElementById('next-up').innerText = "";
+                timeLeft = 0;
+                updateFlipClock(0);
+                pauseTimer();
+                return;
+            }
+
+            const phase = sessionQueue[currentQueueIndex];
+            timeLeft = phase.duration;
+            
+            document.getElementById('wave-info').innerText = `WAVE ${phase.waveNum} // ROUND ${phase.round} / ${phase.totalRounds}`;
+            
+            const nextPhase = sessionQueue[currentQueueIndex + 1];
+            document.getElementById('next-up').innerText = nextPhase ? `NEXT: ${nextPhase.type} (${nextPhase.duration}s)` : 'NEXT: FINISH';
+
+            const phaseLabel = document.getElementById('phase-label');
+            const dot1 = document.getElementById('rest-glow-dot');
+            const dot2 = document.getElementById('rest-glow-dot-right');
+
+            phaseLabel.style.color = "#ffffff";
+            if (phase.type === 'REST') {
+                phaseLabel.innerText = "REST // RECOVER";
+                dot1.classList.add('active');
+                dot2.classList.add('active');
+            } else {
+                phaseLabel.innerText = "WORK // PUSH HARD";
+                dot1.classList.remove('active');
+                dot2.classList.remove('active');
+            }
+
+            updateFlipClock(timeLeft);
+        }
+
+        function updateFlipClock(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            
+            const mStr = m.toString().padStart(2, '0');
+            const sStr = s.toString().padStart(2, '0');
+
+            document.getElementById('m1').innerText = mStr[0];
+            document.getElementById('m2').innerText = mStr[1];
+            document.getElementById('s1').innerText = sStr[0];
+            document.getElementById('s2').innerText = sStr[1];
+        }
+
+        function toggleTimer() {
+            initAudio();
+            if (isRunning) {
+                pauseTimer();
+            } else {
+                if (currentQueueIndex < sessionQueue.length) {
+                    if (timeLeft === sessionQueue[currentQueueIndex].duration) playStadiumHorn();
+                    startTimer();
+                }
+            }
+        }
+
+        function startTimer() {
+            isRunning = true;
+            document.getElementById('icon-playpause').className = "fa-solid fa-pause ml-0";
+            
+            timerInterval = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    updateFlipClock(timeLeft);
+                    
+                    if (sessionQueue[currentQueueIndex].type === 'WORK' && timeLeft <= 10 && timeLeft > 0) {
+                        playLoudTick();
+                    }
+                } else {
+                    currentQueueIndex++;
+                    if(currentQueueIndex < sessionQueue.length) playStadiumHorn();
+                    loadPhase();
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            isRunning = false;
+            clearInterval(timerInterval);
+            document.getElementById('icon-playpause').className = "fa-solid fa-play ml-1 md:ml-2";
+        }
+
+        function skipPhase() {
+            pauseTimer();
+            currentQueueIndex++;
+            if(currentQueueIndex < sessionQueue.length) playStadiumHorn();
+            loadPhase();
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => console.log(err));
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        renderWavesSetup();
+    </script>
+</body>
+</html>
