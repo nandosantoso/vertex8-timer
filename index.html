@@ -159,6 +159,19 @@
         .transition-phase .flip-separator { color: #a85d00; }
         .transition-phase .transition-glow { background-color: #ff9f1c; box-shadow: 0 0 24px 7px rgba(255,159,28,.7); }
 
+        /* Footer attribution on the timer display */
+        .timer-copyright {
+            position: absolute;
+            right: clamp(12px, 2vw, 32px);
+            bottom: clamp(10px, 1.5vh, 20px);
+            color: #686868;
+            font: 700 clamp(9px, 1.2vmin, 13px) 'Courier New', Courier, monospace;
+            letter-spacing: .08em;
+            text-align: right;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
         /* Timer Screen Strict Full viewport fit */
         #timer-screen {
             height: 100dvh;
@@ -285,6 +298,7 @@
                 <p id="next-up" class="text-xs md:text-sm font-mono text-gray-500 uppercase font-bold tracking-widest">NEXT: REST (15s)</p>
             </div>
         </div>
+        <div class="timer-copyright">Copyright by VERTEX8 2026 | Version 1.0</div>
     </div>
 
     <!-- Application Logic -->
