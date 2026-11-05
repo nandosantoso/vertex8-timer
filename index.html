@@ -184,6 +184,42 @@
             font-size: clamp(2rem, 8vmin, 8rem);
             line-height: 1;
         }
+
+        /* Decorative flip-clock video; live countdown remains the source of truth. */
+        .flip-clock-video-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            width: 100%;
+            margin: 0 auto clamp(8px, 1.4vh, 18px);
+            background: #000000;
+            overflow: hidden;
+        }
+
+        .flip-clock-video {
+            display: block;
+            width: clamp(140px, 22vw, 280px);
+            max-height: clamp(42px, 9vh, 88px);
+            height: auto;
+            aspect-ratio: 16 / 9;
+            object-fit: contain;
+            object-position: center;
+            background: #000000;
+        }
+
+        @media (max-width: 640px) {
+            .flip-clock-video {
+                width: clamp(120px, 34vw, 220px);
+                max-height: 7vh;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .flip-clock-video {
+                visibility: hidden;
+            }
+        }
     </style>
 </head>
 <body class="bg-blackbg text-offwhite">
@@ -256,7 +292,23 @@
 
         <!-- Main Timer Area - Flex grow ensures it centers perfectly -->
         <div class="flex-grow flex flex-col items-center justify-center relative w-full overflow-hidden">
-            
+
+            <!-- Decorative mechanical flip-clock animation; live timer digits below remain functional. -->
+            <div class="flip-clock-video-wrap" aria-hidden="true">
+                <video
+                    class="flip-clock-video"
+                    autoplay
+                    muted
+                    loop
+                    playsinline
+                    preload="auto"
+                    disablepictureinpicture
+                    tabindex="-1"
+                >
+                    <source src="assets/flip-clock.mp4" type="video/mp4">
+                </video>
+            </div>
+
             <!-- Phase Indicator -->
             <div class="text-center mb-4 md:mb-8 flex flex-col items-center flex-shrink-0">
                 <div class="flex items-center justify-center mb-2">
